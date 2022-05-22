@@ -1,5 +1,4 @@
 
-#include <iostream>
 #include <algorithm>
 #include <numeric>
 #include <opencv2/highgui/highgui.hpp>
@@ -133,15 +132,12 @@ inline double ttc(const double deltaT, const double d0, const double d1) {
     return d1 * deltaT / (d0 - d1);
 }
 
-template<typename size_type>
-inline size_type medianIdx(const size_type length) {
-    return std::floor((length - 1) / 2);
-}
-
-template<typename T>
-inline T medianValue(const std::vector<T> collection) {
-    size_t idx = std::floor((collection.size() - 1) / 2);
-    return collection.size() % 2 ? (collection[idx] + collection[idx + 1]) / 2 : collection[idx];
+template<typename A, typename AtoDouble>
+inline double computeMedian(std::vector<A> &vec, AtoDouble projection) {
+    std::sort(vec.begin(), vec.end(), [&](const A &p, const A &q) { return projection(p) < projection(q); });
+    size_t idx = std::floor((vec.size() - 1) / 2);
+    auto leftMedianValue = projection(vec[idx]);
+    return vec.size() % 2 ? (leftMedianValue + projection(vec[idx + 1])) / 2 : leftMedianValue;
 }
 
 inline void inlierBounds(const std::vector<double> &matchDistances, double &mean, double &threshold) {
@@ -183,13 +179,6 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, const std::vector<cv::Ke
             boundingBox.kptMatches.push_back(*matchIt);
         }
     }
-/*    std::cout << "\n matchDistance array: ";
-    for (auto &match: matchDistances) {
-        std::cout << match.second << ", ";
-    }
-    std::cout << "\n";
-
-    std::cout << "medianPair: " << medianPair.second << " and size of array: " << matchDistances.size() << "\n";*/
 }
 
 
@@ -208,35 +197,22 @@ void computeTTCCamera(const std::vector<cv::KeyPoint> &kptsPrev, const std::vect
             distPrev = cv::norm(kptsPrev[jt->queryIdx].pt - kptsPrev[it->queryIdx].pt);
             distCurr = cv::norm(kptsCurr[jt->trainIdx].pt - kptsCurr[it->trainIdx].pt);
 
-            // && std::abs(distCurr - distPrev) > MIN_PRECISION
-            //  if (distPrev > MIN_PRECISION && distCurr > MIN_PRECISION && std::abs(distCurr - distPrev) > MIN_PRECISION) {
             if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= 100) {
                 distanceRatios.push_back(distCurr / distPrev);
             }
         }
     }
 
-    std::sort(distanceRatios.begin(), distanceRatios.end(),[](double &p, double &q) { return p < q; });
-    medianRatio = medianValue(distanceRatios);
+    medianRatio = computeMedian(distanceRatios, [](const double& p) { return p; });
     TTC = ttc(1.0 / frameRate, medianRatio, 1);
-
-    //    std::cout << "distanceRatios size: " << distanceRatios.size() << "\n"
-    //   std::cout << "median distance Ratio: " << medianRatio << " | camera TTC: " << TTC << "\n";
-}
-
-double computeMedian(std::vector<LidarPoint> &lidarPoints) {
-    std::sort(lidarPoints.begin(), lidarPoints.end(),
-              [](const LidarPoint &p, const LidarPoint &q) { return p.x < q.x; });
-
-    auto idx = medianIdx(lidarPoints.size());
-    return idx % 2 ? (lidarPoints[idx].x + lidarPoints[idx + 1].x) / 2 : lidarPoints[idx].x;
 }
 
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, const double frameRate, double &TTC) {
 
-    double d0 = computeMedian(lidarPointsPrev);
-    double d1 = computeMedian(lidarPointsCurr);
+    auto projection = [](const LidarPoint& p) { return p.x; };
+    double d0 = computeMedian(lidarPointsPrev, projection);
+    double d1 = computeMedian(lidarPointsCurr, projection);
 
     // std:cout << "| " << d0 << " |\n" << "| " << d0 - d1 << " |\n";
     TTC = ttc(1.0 / frameRate, d0, d1);
