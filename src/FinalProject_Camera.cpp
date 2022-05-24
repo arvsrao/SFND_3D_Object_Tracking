@@ -95,6 +95,10 @@ int main(int argc, const char *argv[])
     string yoloBasePath = dataPath + "dat/yolo/";
     string yoloClassesFile = yoloBasePath + "coco.names";
     string yoloModelConfiguration = yoloBasePath + "yolov3.cfg";
+
+    /** WARNING: 'yolov3.weights' are too large for github so download them directly before
+     *            running the project. `wget "https://pjreddie.com/media/files/yolov3.weights"`
+     * */
     string yoloModelWeights = yoloBasePath + "yolov3.weights";
 
     // Lidar
